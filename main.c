@@ -1,7 +1,8 @@
 /*
- * Pong pour Neo Geo - etape pong-4
- * Les raquettes restent dans l'ecran, la balle part au hasard,
- * et le jeu a deux etats : DEBUT et JEU (bouton START).
+ * Pong pour Neo Geo - bonus pong-4-neogeo (branche bonus-4-neogeo)
+ * Le plus Neo Geo de l'episode 05 : la balle arc-en-ciel.
+ * On ne redessine pas la balle : on change UNE couleur de sa palette
+ * a chaque image ("palette cycling"). Cout : une ecriture par image.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 05.
  */
 
@@ -23,6 +24,7 @@
 #define SPR_BALLE       3
 #define PAL_BLANC       0
 #define PAL_SPRITES    16
+#define PAL_BALLE      17     // bonus : la balle a sa propre palette
 
 // --- Dimensions -----------------------------------------------------------
 #define ECRAN_L       320
@@ -136,6 +138,11 @@ static u8 start_vient_d_etre_appuye(void) {
     return resultat;
 }
 
+// Bonus : 8 couleurs de l'arc-en-ciel (format Neo Geo 0x0RGB).
+static const u16 arc_en_ciel[8] = {
+    0x0f22, 0x0f82, 0x0fe2, 0x02e2, 0x02ef, 0x024f, 0x0a4f, 0x0f4c
+};
+
 int main(void) {
     bios_fix_clear();
     init_palettes();
@@ -143,7 +150,7 @@ int main(void) {
 
     sprite_tuiles(SPR_RAQUETTE1, TUILE_RAQUETTE, 2, PAL_SPRITES);
     sprite_tuiles(SPR_RAQUETTE2, TUILE_RAQUETTE, 2, PAL_SPRITES);
-    sprite_tuiles(SPR_BALLE, TUILE_BALLE, 1, PAL_SPRITES);
+    sprite_tuiles(SPR_BALLE, TUILE_BALLE, 1, PAL_BALLE);
 
     raquette1_y = FIXE(28);
     raquette2_y = FIXE(ECRAN_H - 28 - RAQUETTE_H);
@@ -186,6 +193,11 @@ int main(void) {
         sprite_placer(SPR_RAQUETTE1, 8, PIXELS(raquette1_y), 2);
         sprite_placer(SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, PIXELS(raquette2_y), 2);
         sprite_placer(SPR_BALLE, PIXELS(balle_x), PIXELS(balle_y), 1);
+
+        // Bonus : pendant le jeu, la couleur 1 de la palette de la balle
+        // change toutes les 4 images. Hors jeu, la balle reste blanche.
+        MMAP_PALBANK1[PAL_BALLE * 16 + 1] =
+            (etat == ETAT_JEU) ? arc_en_ciel[(images >> 2) & 7] : 0x0fff;
     }
     return 0;
 }
