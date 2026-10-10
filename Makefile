@@ -56,7 +56,7 @@ include emu.mk
 # 
 # Note: build rules (%.c -> %.o -> %.elf) are defined in Makefile.build
 ELF=$(BUILDDIR)/rom.elf
-$(ELF):	$(BUILDDIR)/main.o
+$(ELF):	$(BUILDDIR)/main.o $(BUILDDIR)/sprites.o $(BUILDDIR)/hasard.o $(BUILDDIR)/raquette.o $(BUILDDIR)/balle.o
 $(PROM1): $(ELF)
 
 
