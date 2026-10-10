@@ -25,9 +25,14 @@
 // --- Tuiles, sprites et palettes ------------------------------------------
 #define TUILE_RAQUETTE  256
 #define TUILE_BALLE     258
+#define TUILE_CHIFFRE0  260   // chiffres 0 a 9 : tuiles 260 a 269
 #define SPR_RAQUETTE1   1
 #define SPR_RAQUETTE2   2
 #define SPR_BALLE       3
+#define SPR_SCORE1_D    4     // joueur 1 : dizaines
+#define SPR_SCORE1_U    5     // joueur 1 : unites
+#define SPR_SCORE2_D    6
+#define SPR_SCORE2_U    7
 #define PAL_BLANC       0
 #define PAL_SPRITES    16
 

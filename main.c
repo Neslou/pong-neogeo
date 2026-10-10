@@ -1,8 +1,7 @@
 /*
- * Pong pour Neo Geo - etape pong-7
- * Les collisions : la balle rebondit sur les raquettes et sur les murs,
- * et accelere a chaque renvoi.
- * Serie "Apprendre a coder sur Neo Geo en C", episode 06.
+ * Pong pour Neo Geo - etape pong-8
+ * Le score : un point quand la balle sort completement de l'ecran.
+ * Serie "Apprendre a coder sur Neo Geo en C", episode 07.
  */
 
 #include <ngdevkit/neogeo.h>
@@ -18,6 +17,7 @@
 #include "balle.h"
 #include "debug.h"
 #include "vblank.h"
+#include "score.h"
 
 #define ETAT_DEBUT  0
 #define ETAT_JEU    1
@@ -25,6 +25,8 @@
 static Raquette joueur1, joueur2;
 static Balle balle;
 static u8 etat = ETAT_DEBUT;
+static u8 score1 = 0, score2 = 0;
+static u8 score_change = 0;   // "drapeau sale" : 1 = le score est a redessiner
 
 static void init_palettes(void) {
     MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;
@@ -71,6 +73,7 @@ int main(void) {
     balle_init(&balle, SPR_BALLE);
     afficher_etat();
     debug_init();
+    score_init();
 
     u8 graine_choisie = 0;
     u16 images = 0;   // nombre de tours de boucle (= d'images) depuis le debut
@@ -100,6 +103,22 @@ int main(void) {
                 balle_renvoyer(&balle, &joueur2);
             }
             balle_rebondir_murs(&balle);
+
+            // Un point quand la balle est sortie EN ENTIER de l'ecran,
+            // a gauche comme a droite (le cours d'origine etait asymetrique).
+            if (PIXELS(balle.x) + BALLE_T <= 0) {
+                score2++;
+                score_change = 1;
+                etat = ETAT_DEBUT;
+                balle_au_centre(&balle);
+                afficher_etat();
+            } else if (PIXELS(balle.x) >= ECRAN_L) {
+                score1++;
+                score_change = 1;
+                etat = ETAT_DEBUT;
+                balle_au_centre(&balle);
+                afficher_etat();
+            }
         }
 
         // Bouton A maintenu : on "travaille" trop longtemps, exprès,
@@ -115,6 +134,11 @@ int main(void) {
         raquette_afficher(&joueur1);
         raquette_afficher(&joueur2);
         balle_afficher(&balle);
+        if (score_change) {
+            score_afficher(1, score1);
+            score_afficher(2, score2);
+            score_change = 0;
+        }
     }
     return 0;
 }
