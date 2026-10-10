@@ -13,13 +13,23 @@
 // ngdevkit, dans <ngdevkit/registers.h>.
 #define NB_SPRITES 381
 
+// Sur le vrai materiel, deux ecritures en VRAM trop rapprochees peuvent
+// se perdre : la puce video a besoin d'au moins 12 cycles entre deux
+// ecritures. MAME ne le simule pas ; l'Analogue Pocket, si.
+// Toutes nos ecritures passent donc par cette fonction, qui ajoute
+// deux instructions NOP (4 cycles chacune) apres chaque ecriture.
+static inline void vram_ecrire(u16 valeur) {
+    *REG_VRAMRW = valeur;
+    __asm__ volatile ("nop\n\tnop");
+}
+
 // Au demarrage, la VRAM contient n'importe quoi : un sprite de hauteur 0
 // n'est pas affiche, donc on met toutes les hauteurs a 0.
 void cacher_tous_les_sprites(void) {
     *REG_VRAMADDR = ADDR_SCB3;
     *REG_VRAMMOD = 1;
     for (u16 i = 0; i < NB_SPRITES; i++) {
-        *REG_VRAMRW = 0;
+        vram_ecrire(0);
     }
 }
 
@@ -29,11 +39,11 @@ void sprite_tuiles(u16 sprite, u16 premiere_tuile, u8 nb_tuiles, u8 palette) {
     *REG_VRAMADDR = ADDR_SCB1 + sprite * 64;
     *REG_VRAMMOD = 1;
     for (u8 i = 0; i < nb_tuiles; i++) {
-        *REG_VRAMRW = premiere_tuile + i;
-        *REG_VRAMRW = palette << 8;
+        vram_ecrire(premiere_tuile + i);
+        vram_ecrire(palette << 8);
     }
     *REG_VRAMADDR = ADDR_SCB2 + sprite;
-    *REG_VRAMRW = 0x0fff;
+    vram_ecrire(0x0fff);
 }
 
 // Place un sprite a l'ecran. x, y : coin haut gauche, en pixels.
@@ -41,6 +51,6 @@ void sprite_tuiles(u16 sprite, u16 premiere_tuile, u8 nb_tuiles, u8 palette) {
 void sprite_placer(u16 sprite, s16 x, s16 y, u8 nb_tuiles) {
     *REG_VRAMADDR = ADDR_SCB3 + sprite;
     *REG_VRAMMOD = 0x200;
-    *REG_VRAMRW = ((496 - y) << 7) | nb_tuiles;
-    *REG_VRAMRW = x << 7;
+    vram_ecrire(((496 - y) << 7) | nb_tuiles);
+    vram_ecrire(x << 7);
 }

@@ -1,6 +1,7 @@
 /*
- * Pong pour Neo Geo - etape pong-11
- * Le son : trois bruitages ADPCM-A joues par le processeur Z80.
+ * Pong pour Neo Geo - etape pong-12
+ * Pret pour le vrai materiel : ecritures en memoire video espacees,
+ * plus de ralentissement artificiel. Le jeu complet.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 08.
  */
 
@@ -174,10 +175,6 @@ int main(void) {
             } else if (PIXELS(balle.x) >= ECRAN_L) {
                 point_pour(1);
             }
-        }
-
-        if (bios_p1current & CNT_A) {
-            for (volatile u16 attente = 0; attente < 4000; attente++) {}
         }
 
         attendre_vblank();
