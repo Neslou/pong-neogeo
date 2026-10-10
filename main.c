@@ -1,7 +1,8 @@
 /*
- * Pong pour Neo Geo - etape pong-7
- * Les collisions : la balle rebondit sur les raquettes et sur les murs,
- * et accelere a chaque renvoi.
+ * Pong pour Neo Geo - bonus pong-7-neogeo (branche bonus-7-neogeo)
+ * Le plus Neo Geo de l'episode 06 : l'animation automatique.
+ * La puce video sait animer un sprite toute seule, sans une ligne de
+ * code dans la boucle : elle fait tourner 4 tuiles consecutives.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 06.
  */
 
@@ -30,7 +31,26 @@ static void init_palettes(void) {
     MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;
     MMAP_PALBANK1[PAL_BLANC * 16 + 2] = 0x0555;
     MMAP_PALBANK1[PAL_SPRITES * 16 + 1] = 0x0fff;
+    MMAP_PALBANK1[PAL_SPRITES * 16 + 2] = 0x0fe4;   // bonus : jaune
+    MMAP_PALBANK1[PAL_SPRITES * 16 + 3] = 0x06ef;   // bonus : cyan
     MMAP_PALBANK1[4095] = 0x6223;
+}
+
+// Bonus : les tuiles 272 a 275 sont 4 images de la balle.
+// Le bit 2 des attributs (SCB1) demande a la puce video de remplacer
+// les 2 derniers bits du numero de tuile par son compteur d'animation :
+// 272, 273, 274, 275, 272... La premiere tuile doit etre un multiple de 4.
+#define TUILE_BALLE_ANIM  272
+#define ANIM_4_IMAGES     0x0004
+
+static void balle_animation_auto(u16 sprite) {
+    *REG_VRAMADDR = ADDR_SCB1 + sprite * 64;
+    *REG_VRAMMOD = 1;
+    *REG_VRAMRW = TUILE_BALLE_ANIM;
+    *REG_VRAMRW = (PAL_SPRITES << 8) | ANIM_4_IMAGES;
+    // Vitesse de l'animation : l'octet haut de REG_LSPCMODE donne le
+    // nombre d'images entre deux etapes (ici 6, soit 10 etapes par seconde).
+    *REG_LSPCMODE = 6 << 8;
 }
 
 static void afficher_etat(void) {
@@ -69,6 +89,7 @@ int main(void) {
     raquette_init(&joueur1, SPR_RAQUETTE1, 8, 28);
     raquette_init(&joueur2, SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, ECRAN_H - 28 - RAQUETTE_H);
     balle_init(&balle, SPR_BALLE);
+    balle_animation_auto(SPR_BALLE);   // bonus : une fois pour toutes
     afficher_etat();
     debug_init();
 
