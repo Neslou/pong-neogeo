@@ -37,9 +37,9 @@ include config.mk
 # This defines the layout of your game cartridge
 # You can customize it to match your requirements
 # Name of the rom file created
-GAMEROM=ngdevkit
+GAMEROM=pong
 # Game title, long description
-GAMETITLE=ngdevkit template ROM
+GAMETITLE=Pong Neo Geo
 include rom.mk
 
 # All the generic build targets (68k, Z80, assets, run)
