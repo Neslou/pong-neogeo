@@ -1,0 +1,369 @@
+                                      1 ;;;
+                                      2 ;;; Copyright (c) 2026 Damien Ciabrini
+                                      3 ;;; This file is part of ngdevkit-examples
+                                      4 ;;;
+                                      5 ;;; ngdevkit is free software: you can redistribute it and/or modify
+                                      6 ;;; it under the terms of the GNU Lesser General Public License as
+                                      7 ;;; published by the Free Software Foundation, either version 3 of the
+                                      8 ;;; License, or (at your option) any later version.
+                                      9 ;;;
+                                     10 ;;; ngdevkit is distributed in the hope that it will be useful,
+                                     11 ;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+                                     12 ;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+                                     13 ;;; GNU Lesser General Public License for more details.
+                                     14 ;;;
+                                     15 ;;; You should have received a copy of the GNU Lesser General Public License
+                                     16 ;;; along with ngdevkit.  If not, see <http://www.gnu.org/licenses/>.
+                                     17 ;;;
+                                     18 
+                                     19 ;;; Barebone nullsound driver for building Neo Geo cartriges
+                                     20 ;;; It only provides the sound commands triggered by the BIOS
+                                     21 ;;; ------------------------------------------------------
+                                     22 
+                                     23         .include "helpers.inc"
+                                      1 ;;;
+                                      2 ;;; nullsound - modular sound driver
+                                      3 ;;; Copyright (c) 2020-2023 Damien Ciabrini
+                                      4 ;;; This file is part of ngdevkit
+                                      5 ;;;
+                                      6 ;;; ngdevkit is free software: you can redistribute it and/or modify
+                                      7 ;;; it under the terms of the GNU Lesser General Public License as
+                                      8 ;;; published by the Free Software Foundation, either version 3 of the
+                                      9 ;;; License, or (at your option) any later version.
+                                     10 ;;;
+                                     11 ;;; ngdevkit is distributed in the hope that it will be useful,
+                                     12 ;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+                                     13 ;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+                                     14 ;;; GNU Lesser General Public License for more details.
+                                     15 ;;;
+                                     16 ;;; You should have received a copy of the GNU Lesser General Public License
+                                     17 ;;; along with ngdevkit.  If not, see <http://www.gnu.org/licenses/>.
+                                     18 
+                                     19 
+                                     20         ;; load constants on a pair of Z80 registers
+                                     21         .macro ldcst reg,car,cdr
+                                     22         ld      'reg', (('car') << 8) | ('cdr')
+                                     23         .endm
+                                     24 
+                                     25         ;; load constants on a pair of Z80 registers
+                                     26         .macro init_unused_cmd_jmptable
+                                     27 cmd_jmptable_padding:
+                                     28         ;; fill remaining commands if any
+                                     29         .rept   128-((cmd_jmptable_padding - cmd_jmptable)/3)
+                                     30         jp      snd_command_unused
+                                     31         .endm
+                                     32         .endm
+                                     33 
+                                     34         ;; nullsound ID, stored in the beginning of the sound ROM
+                                     35         .macro  nullsound_id
+                                     36         .ascii  %nullsound v0.2.0 - https://github.com/dciabrin/ngdevkit%
+                                     37         .endm
+                                     38 
+                                     39         ;; private helper to generate z80 opcode to stay idle in RAM
+                           00FFFE    40         .lclequ RESET_WAIT_PC,0xfffe
+                           00FE18    41         .lclequ OPCODE_JR_TO_SELF,0xfe18
+                                     42         .macro  prepare_wait_in_ram_opcodes
+                                     43         ;; create a jmp-to-self instruction at the top of the RAM
+                                     44         ;; to ensure the 68k can bank-switch z80 code without impact
+                                     45         ld      bc, #OPCODE_JR_TO_SELF     ; jr <self>
+                                     46         ld      (#RESET_WAIT_PC), bc
+                                     47         ;; ;; prepare the stack to pop into the jump-to-self in RAM
+                                     48         ld      hl, #0xfffe
+                                     49         ld      sp, hl
+                                     50         push    hl
+                                     51         .endm
+                                     52 
+                                     53         ;; address of an optional hook function that gets called
+                                     54         ;; once the driver finished its initialization
+                           00FFFE    55         .lclequ POST_INIT_HOOK, RESET_WAIT_PC
+                                     24 
+                                     25         .area   CODE
+                                     26 
+                                     27 
+                                     28 ;;; The M-ROM must provide a jump table to all sound commands
+                                     29 ;;; The jump table includes command 01 and 03 which are
+                                     30 ;;; implemented by nullsound.
+                                     31 ;;; If relies on a new
+                                     32 ;;;
+                                     33 
+      000000                         34 cmd_jmptable::
+                                     35         ;; common/reserved sound commands
+      000000 C3 00 00         [10]   36         jp      snd_command_unused
+      000003 C3 00 00         [10]   37         jp      snd_command_01_prepare_for_rom_switch
+      000006 C3 00 00         [10]   38         jp      music_ngdevkit_eye_catcher
+      000009 C3 00 00         [10]   39         jp      snd_command_03_reset_driver
+                                     40         ;; complete unused sound commands
+      00000C                         41         init_unused_cmd_jmptable
+      00000C                          1 cmd_jmptable_padding:
+                                      2         ;; fill remaining commands if any
+                                      3         .rept   128-((cmd_jmptable_padding - cmd_jmptable)/3)
+                                      4         jp      snd_command_unused
+                                      5         .endm
+      00000C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00000F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000012 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000015 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000018 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00001B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00001E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000021 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000024 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000027 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00002A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00002D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000030 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000033 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000036 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000039 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00003C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00003F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000042 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000045 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000048 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00004B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00004E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000051 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000054 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000057 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00005A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00005D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000060 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000063 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000066 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000069 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00006C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00006F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000072 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000075 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000078 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00007B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00007E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000081 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000084 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000087 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00008A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00008D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000090 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000093 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000096 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000099 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00009C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00009F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000A2 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000A5 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000A8 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000AB C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000AE C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000B1 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000B4 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000B7 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000BA C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000BD C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000C0 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000C3 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000C6 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000C9 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000CC C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000CF C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000D2 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000D5 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000D8 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000DB C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000DE C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000E1 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000E4 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000E7 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000EA C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000ED C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000F0 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000F3 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000F6 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000F9 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000FC C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      0000FF C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000102 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000105 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000108 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00010B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00010E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000111 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000114 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000117 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00011A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00011D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000120 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000123 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000126 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000129 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00012C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00012F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000132 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000135 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000138 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00013B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00013E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000141 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000144 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000147 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00014A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00014D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000150 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000153 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000156 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000159 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00015C C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00015F C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000162 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000165 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000168 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00016B C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00016E C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000171 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000174 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      000177 C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00017A C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+      00017D C3 00 00         [10]    1         jp      snd_command_unused
+                                      2         .endm
+                                      6         .endm
+ASxxxx Assembler V02.00 + NoICE + SDCC mods  (Zilog Z80 / Hitachi HD64180 / ZX-Next / eZ80), page 1.
+Hexadecimal [24-Bits]
+
+Symbol Table
+
+    .__.$$$.=  002710 L   |     .__.ABS.=  000000 G   |     .__.CPU.=  000000 L
+    .__.H$L.=  000000 L   |     OPCODE_J=  00FE18 L   |     POST_INI=  00FFFE L
+    RESET_WA=  00FFFE L   |   1 cmd_jmpt   000000 GR  |   1 cmd_jmpt   00000C R
+    music_ng   ****** GX  |     snd_comm   ****** GX  |     snd_comm   ****** GX
+    snd_comm   ****** GX
+
+ASxxxx Assembler V02.00 + NoICE + SDCC mods  (Zilog Z80 / Hitachi HD64180 / ZX-Next / eZ80), page 2.
+Hexadecimal [24-Bits]
+
+Area Table
+
+   0 _CODE      size      0   flags    0
+   1 CODE       size    180   flags    0
+

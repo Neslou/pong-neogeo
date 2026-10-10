@@ -1,0 +1,45 @@
+                                      1 ;;;
+                                      2 ;;; Copyright (c) 2026 Damien Ciabrini
+                                      3 ;;; This file is part of ngdevkit-examples
+                                      4 ;;;
+                                      5 ;;; ngdevkit is free software: you can redistribute it and/or modify
+                                      6 ;;; it under the terms of the GNU Lesser General Public License as
+                                      7 ;;; published by the Free Software Foundation, either version 3 of the
+                                      8 ;;; License, or (at your option) any later version.
+                                      9 ;;;
+                                     10 ;;; ngdevkit is distributed in the hope that it will be useful,
+                                     11 ;;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+                                     12 ;;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+                                     13 ;;; GNU Lesser General Public License for more details.
+                                     14 ;;;
+                                     15 ;;; You should have received a copy of the GNU Lesser General Public License
+                                     16 ;;; along with ngdevkit.  If not, see <http://www.gnu.org/licenses/>.
+                                     17 ;;;
+                                     18 
+                                     19 ;;; Simple function definition to play the ngdevkit eye catcher jingle
+                                     20 
+                                     21         .area   CODE
+                                     22 
+      000000                         23 music_ngdevkit_eye_catcher::
+      000000 CD 00 00         [17]   24         call    snd_stream_stop
+      000003 01 00 00         [10]   25         ld      bc, #instruments_ngdevkit
+      000006 11 00 00         [10]   26         ld      de, #nss_ngdevkit
+      000009 CD 00 00         [17]   27         call    snd_stream_play
+      00000C C9               [10]   28         ret
+ASxxxx Assembler V02.00 + NoICE + SDCC mods  (Zilog Z80 / Hitachi HD64180 / ZX-Next / eZ80), page 1.
+Hexadecimal [24-Bits]
+
+Symbol Table
+
+    .__.$$$.=  002710 L   |     .__.ABS.=  000000 G   |     .__.CPU.=  000000 L
+    .__.H$L.=  000000 L   |     instrume   ****** GX  |   1 music_ng   000000 GR
+    nss_ngde   ****** GX  |     snd_stre   ****** GX  |     snd_stre   ****** GX
+
+ASxxxx Assembler V02.00 + NoICE + SDCC mods  (Zilog Z80 / Hitachi HD64180 / ZX-Next / eZ80), page 2.
+Hexadecimal [24-Bits]
+
+Area Table
+
+   0 _CODE      size      0   flags    0
+   1 CODE       size      D   flags    0
+
