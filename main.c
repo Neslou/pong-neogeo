@@ -1,7 +1,8 @@
 /*
- * Pong pour Neo Geo - etape pong-12
- * Pret pour le vrai materiel : ecritures en memoire video espacees,
- * plus de ralentissement artificiel. Le jeu complet.
+ * Pong pour Neo Geo - bonus pong-12-neogeo (branche bonus-12-neogeo)
+ * Le plus Neo Geo de l'episode 08 : l'eclair. A chaque point, tout
+ * l'ecran s'illumine puis s'eteint en 16 images, en changeant une
+ * seule case de la palette : la couleur de fond (4095).
  * Serie "Apprendre a coder sur Neo Geo en C", episode 08.
  */
 
@@ -38,6 +39,7 @@ static u8 joueur_au_service = 1;
 static u8 joueur_gagnant = 0;
 static u8 score1 = 0, score2 = 0;
 static u8 score_change = 0;   // "drapeau sale" : 1 = le score est a redessiner
+static u8 eclair = 0;         // bonus : images restantes de l'eclair
 
 static void init_palettes(void) {
     MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;
@@ -87,6 +89,7 @@ static void point_pour(u8 joueur) {
     }
     score_change = 1;
     *REG_SON = SON_POINT;
+    eclair = 16;              // bonus : le fond s'illumine
     balle_au_centre(&balle);
     if (score == SCORE_GAGNANT) {
         joueur_gagnant = joueur;
@@ -109,6 +112,11 @@ static u8 start_vient_d_etre_appuye(void) {
     start_avant = start;
     return resultat;
 }
+
+// Bonus : du blanc au gris-bleu du fond, en 8 teintes.
+static const u16 teintes_eclair[8] = {
+    0x6223, 0x0335, 0x0556, 0x0778, 0x099a, 0x0bbb, 0x0ddd, 0x0fff
+};
 
 int main(void) {
     *REG_SON = 3;   // remet le pilote son a zero
@@ -188,6 +196,12 @@ int main(void) {
             score_afficher(1, score1);
             score_afficher(2, score2);
             score_change = 0;
+        }
+
+        // Bonus : l'eclair s'eteint doucement (une teinte toutes les 2 images).
+        if (eclair > 0) {
+            eclair--;
+            MMAP_PALBANK1[4095] = teintes_eclair[eclair >> 1];
         }
     }
     return 0;
