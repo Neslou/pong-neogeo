@@ -1,7 +1,7 @@
 /*
- * Pong pour Neo Geo - etape pong-5
- * Le code est range : une struct et un fichier par objet.
- * Le jeu se comporte exactement comme a l'etape pong-4.
+ * Pong pour Neo Geo - etape pong-6
+ * Un compteur de debogage : images affichees et images perdues.
+ * Maintenir A simule un calcul trop long, pour voir le compteur grimper.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 06.
  */
 
@@ -16,6 +16,8 @@
 #include "hasard.h"
 #include "raquette.h"
 #include "balle.h"
+#include "debug.h"
+#include "vblank.h"
 
 #define ETAT_DEBUT  0
 #define ETAT_JEU    1
@@ -68,6 +70,7 @@ int main(void) {
     raquette_init(&joueur2, SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, ECRAN_H - 28 - RAQUETTE_H);
     balle_init(&balle, SPR_BALLE);
     afficher_etat();
+    debug_init();
 
     u8 graine_choisie = 0;
     u16 images = 0;   // nombre de tours de boucle (= d'images) depuis le debut
@@ -92,8 +95,15 @@ int main(void) {
             balle_mettre_a_jour(&balle);
         }
 
-        ng_wait_vblank();
+        // Bouton A maintenu : on "travaille" trop longtemps, exprès,
+        // pour depasser la duree d'une image (environ 16,9 ms).
+        if (bios_p1current & CNT_A) {
+            for (volatile u16 attente = 0; attente < 4000; attente++) {}
+        }
+
+        attendre_vblank();
         images++;
+        debug_apres_vblank();
 
         raquette_afficher(&joueur1);
         raquette_afficher(&joueur2);
