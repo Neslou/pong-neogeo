@@ -1,71 +1,76 @@
 /*
- * Pong pour Neo Geo - etape pong-3
- * Les raquettes bougent : la boucle de jeu, le VBlank, la manette.
+ * Pong pour Neo Geo - etape pong-4
+ * Les raquettes restent dans l'ecran, la balle part au hasard,
+ * et le jeu a deux etats : DEBUT et JEU (bouton START).
  * Serie "Apprendre a coder sur Neo Geo en C", episode 05.
- *
- * Sur Neo Geo, le temps est fixe : une image toutes les 1/59,19 s.
- * Les vitesses s'expriment donc en pixels PAR IMAGE, et comme le 68000
- * ne calcule pas avec des virgules, en "virgule fixe" : la valeur x 256.
  */
 
 #include <ngdevkit/neogeo.h>
 #include <ngdevkit/bios-calls.h>
 #include <ngdevkit/ng-fix.h>
-#include <ngdevkit/ng-video.h>   // ng_wait_vblank()
-#include <ngdevkit/bios-ram.h>   // bios_p1current, bios_p2current : les manettes
+#include <ngdevkit/ng-video.h>
+#include <ngdevkit/bios-ram.h>
 
-// --- La memoire video des sprites (VRAM) -------------------------------
-// Chaque sprite est decrit dans 4 tables :
-//   SCB1 : la liste de ses tuiles (64 mots par sprite)
-//   SCB2 : son facteur de reduction (zoom)
-//   SCB3 : sa position verticale et sa hauteur en tuiles
-//   SCB4 : sa position horizontale
+// --- Memoire video des sprites -------------------------------------------
 // Leurs adresses (ADDR_SCB1 a ADDR_SCB4) sont deja definies par
 // ngdevkit, dans <ngdevkit/registers.h>.
 #define NB_SPRITES 381
 
-// --- Nos tuiles dans la ROM C ------------------------------------------
-// Les 256 premieres tuiles sont celles du modele ngdevkit (le logo).
-// pong-sprites.gif est decoupe en tuiles de 16 x 16, ligne par ligne :
-#define TUILE_RAQUETTE  256   // haut de la raquette (la tuile 257 = le bas)
+#define TUILE_RAQUETTE  256
 #define TUILE_BALLE     258
-
-// --- Les numeros de sprites ---------------------------------------------
 #define SPR_RAQUETTE1   1
 #define SPR_RAQUETTE2   2
 #define SPR_BALLE       3
+#define PAL_BLANC       0
+#define PAL_SPRITES    16
 
-// --- Palettes -----------------------------------------------------------
-#define PAL_BLANC       0     // texte de la couche fix
-#define PAL_SPRITES    16     // les sprites peuvent utiliser les 256 palettes
-
-// --- Dimensions (en pixels) ---------------------------------------------
+// --- Dimensions -----------------------------------------------------------
 #define ECRAN_L       320
 #define ECRAN_H       224
 #define RAQUETTE_L      5
 #define RAQUETTE_H     20
 #define BALLE_T         4
 
-// --- Virgule fixe 8.8 : la valeur x 256 -----------------------------------
-// 200 px/s dans le cours d'origine, a l'echelle de notre ecran (x 0,92)
-// et par image (/ 59,19) : 3,11 px par image, soit 3,11 x 256 = 797.
-#define VITESSE_RAQUETTE  797
-#define FIXE(px)  ((s32)(px) << 8)    // pixels -> virgule fixe
-#define PIXELS(f) ((s16)((f) >> 8))   // virgule fixe -> pixels
+// --- Virgule fixe 8.8 ------------------------------------------------------
+#define FIXE(px)  ((s32)(px) << 8)
+#define PIXELS(f) ((s16)((f) >> 8))
+#define VITESSE_RAQUETTE  797   // 3,11 px par image
 
-// Position verticale des raquettes, en virgule fixe
-static s32 raquette1_y = FIXE(28);
-static s32 raquette2_y = FIXE(ECRAN_H - 28 - RAQUETTE_H);
+// --- Les etats du jeu --------------------------------------------------
+#define ETAT_DEBUT  0
+#define ETAT_JEU    1
 
-static void init_palettes(void) {
-    MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;      // texte blanc
-    MMAP_PALBANK1[PAL_BLANC * 16 + 2] = 0x0555;      // ombre grise
-    MMAP_PALBANK1[PAL_SPRITES * 16 + 1] = 0x0fff;    // raquettes et balle : blanc
-    MMAP_PALBANK1[4095] = 0x6223;                    // fond de l'ecran : gris-bleu
+static s32 raquette1_y, raquette2_y;     // positions des raquettes (8.8)
+static s32 balle_x, balle_y;             // position de la balle (8.8)
+static s16 balle_dx, balle_dy;           // vitesse de la balle (8.8, par image)
+static u8 etat = ETAT_DEBUT;
+
+// --- Le hasard sans horloge --------------------------------------------
+// Un generateur "xorshift" sur 16 bits : chaque appel melange les bits.
+// La graine est choisie au premier appui sur START (le moment exact,
+// a l'image pres, est imprevisible).
+static u16 graine = 1;
+
+static u16 hasard(void) {
+    graine ^= graine << 7;
+    graine ^= graine >> 9;
+    graine ^= graine << 8;
+    return graine;
 }
 
-// Cache les 381 sprites : au demarrage, la VRAM contient n'importe quoi.
-// Un sprite de hauteur 0 n'est pas affiche.
+// Un nombre entre min et max (inclus).
+static s16 hasard_entre(s16 min, s16 max) {
+    return min + (s16)(hasard() % (u16)(max - min + 1));
+}
+
+// --- Sprites -------------------------------------------------------------
+static void init_palettes(void) {
+    MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;
+    MMAP_PALBANK1[PAL_BLANC * 16 + 2] = 0x0555;
+    MMAP_PALBANK1[PAL_SPRITES * 16 + 1] = 0x0fff;
+    MMAP_PALBANK1[4095] = 0x6223;
+}
+
 static void cacher_tous_les_sprites(void) {
     *REG_VRAMADDR = ADDR_SCB3;
     *REG_VRAMMOD = 1;
@@ -74,26 +79,61 @@ static void cacher_tous_les_sprites(void) {
     }
 }
 
-// Donne a un sprite sa colonne de tuiles (consecutives dans la ROM C),
-// sa palette, et sa taille normale (pas de reduction).
 static void sprite_tuiles(u16 sprite, u16 premiere_tuile, u8 nb_tuiles, u8 palette) {
     *REG_VRAMADDR = ADDR_SCB1 + sprite * 64;
     *REG_VRAMMOD = 1;
     for (u8 i = 0; i < nb_tuiles; i++) {
-        *REG_VRAMRW = premiere_tuile + i;   // numero de la tuile
-        *REG_VRAMRW = palette << 8;         // attributs : palette, pas de miroir
+        *REG_VRAMRW = premiere_tuile + i;
+        *REG_VRAMRW = palette << 8;
     }
     *REG_VRAMADDR = ADDR_SCB2 + sprite;
-    *REG_VRAMRW = 0x0fff;                   // 0x0fff = taille normale
+    *REG_VRAMRW = 0x0fff;
 }
 
-// Place un sprite a l'ecran. x, y : coin haut gauche, en pixels.
-// La Neo Geo compte Y a l'envers : 496 - y.
 static void sprite_placer(u16 sprite, s16 x, s16 y, u8 nb_tuiles) {
     *REG_VRAMADDR = ADDR_SCB3 + sprite;
-    *REG_VRAMMOD = 0x200;                   // SCB3 -> SCB4 : 0x200 plus loin
+    *REG_VRAMMOD = 0x200;
     *REG_VRAMRW = ((496 - y) << 7) | nb_tuiles;
     *REG_VRAMRW = x << 7;
+}
+
+// --- La balle ------------------------------------------------------------
+// Au centre, avec une vitesse au hasard.
+// Cours d'origine : 100 px/s a gauche ou a droite, -50 a 50 px/s en hauteur.
+// Converti par image et a notre echelle : 1,25 px (320) et -0,78 a 0,78 px (-199 a 199).
+static void balle_au_centre(void) {
+    balle_x = FIXE((ECRAN_L - BALLE_T) / 2);
+    balle_y = FIXE((ECRAN_H - BALLE_T) / 2);
+    balle_dx = (hasard() & 1) ? 320 : -320;
+    balle_dy = hasard_entre(-199, 199);
+}
+
+// --- Bloquer une raquette dans l'ecran ----------------------------------
+static s32 bloquer(s32 y) {
+    if (y < 0) return 0;
+    if (y > FIXE(ECRAN_H - RAQUETTE_H)) return FIXE(ECRAN_H - RAQUETTE_H);
+    return y;
+}
+
+static void afficher_etat(void) {
+    if (etat == ETAT_DEBUT) {
+        ng_center_text(3, PAL_BLANC, "ETAT : DEBUT  ");
+    } else {
+        ng_center_text(3, PAL_BLANC, "ETAT : JEU    ");
+    }
+}
+
+// START "vient d'etre appuye" : vrai UNE seule image, quand le bouton
+// passe de relache a enfonce (un "front montant"). C'est l'equivalent
+// de love.keypressed en Lua, alors que bios_p1current ressemble a
+// love.keyboard.isDown. On le calcule nous-memes a partir de l'etat
+// courant (bios_statcurnt) : ca marche avec tous les BIOS.
+static u8 start_avant = 0;
+static u8 start_vient_d_etre_appuye(void) {
+    u8 start = bios_statcurnt & CNT_START1;
+    u8 resultat = start && !start_avant;
+    start_avant = start;
+    return resultat;
 }
 
 int main(void) {
@@ -101,34 +141,51 @@ int main(void) {
     init_palettes();
     cacher_tous_les_sprites();
 
-    ng_center_text(3, PAL_BLANC, "HELLO PONG!");
-
-    // Les deux raquettes : la meme paire de tuiles, deux sprites.
     sprite_tuiles(SPR_RAQUETTE1, TUILE_RAQUETTE, 2, PAL_SPRITES);
     sprite_tuiles(SPR_RAQUETTE2, TUILE_RAQUETTE, 2, PAL_SPRITES);
     sprite_tuiles(SPR_BALLE, TUILE_BALLE, 1, PAL_SPRITES);
 
-    // Raquette gauche : 8 pixels du bord. Raquette droite : 8 pixels du bord
-    // droit, sans oublier sa largeur (320 - 8 - 5 = 307).
-    // La balle au centre : (320 - 4) / 2 = 158 et (224 - 4) / 2 = 110
-    sprite_placer(SPR_BALLE, (ECRAN_L - BALLE_T) / 2, (ECRAN_H - BALLE_T) / 2, 1);
+    raquette1_y = FIXE(28);
+    raquette2_y = FIXE(ECRAN_H - 28 - RAQUETTE_H);
+    balle_au_centre();
+    afficher_etat();
 
-    // La boucle de jeu : lire, calculer, attendre l'image, afficher.
+    u8 graine_choisie = 0;
+    u16 images = 0;   // nombre de tours de boucle (= d'images) depuis le debut
+
     for (;;) {
-        // 1. Lire les manettes (le BIOS les a lues pour nous)
-        //    et 2. calculer les nouvelles positions.
-        //    Haut = y diminue (l'axe Y descend), bas = y augmente.
-        if (bios_p1current & CNT_UP)   raquette1_y -= VITESSE_RAQUETTE;
-        if (bios_p1current & CNT_DOWN) raquette1_y += VITESSE_RAQUETTE;
-        if (bios_p2current & CNT_UP)   raquette2_y -= VITESSE_RAQUETTE;
-        if (bios_p2current & CNT_DOWN) raquette2_y += VITESSE_RAQUETTE;
+        // START (appui unique) : on passe d'un etat a l'autre.
+        if (start_vient_d_etre_appuye()) {
+            if (!graine_choisie) {
+                // la graine = l'instant (en images) ou le joueur appuie
+                graine = images | 1;
+                graine_choisie = 1;
+            }
+            // Dans les deux cas, la balle repart du centre avec une
+            // nouvelle vitesse au hasard (la graine vient d'etre choisie).
+            etat = (etat == ETAT_DEBUT) ? ETAT_JEU : ETAT_DEBUT;
+            balle_au_centre();
+            afficher_etat();
+        }
 
-        // 3. Attendre le VBlank : une seule fois par image, toujours.
+        // Les raquettes, toujours, mais bloquees aux bords.
+        if (bios_p1current & CNT_UP)   raquette1_y = bloquer(raquette1_y - VITESSE_RAQUETTE);
+        if (bios_p1current & CNT_DOWN) raquette1_y = bloquer(raquette1_y + VITESSE_RAQUETTE);
+        if (bios_p2current & CNT_UP)   raquette2_y = bloquer(raquette2_y - VITESSE_RAQUETTE);
+        if (bios_p2current & CNT_DOWN) raquette2_y = bloquer(raquette2_y + VITESSE_RAQUETTE);
+
+        // La balle ne bouge que pendant le jeu.
+        if (etat == ETAT_JEU) {
+            balle_x += balle_dx;
+            balle_y += balle_dy;
+        }
+
         ng_wait_vblank();
+        images++;
 
-        // 4. Afficher : on ne garde que la partie entiere (en pixels).
         sprite_placer(SPR_RAQUETTE1, 8, PIXELS(raquette1_y), 2);
         sprite_placer(SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, PIXELS(raquette2_y), 2);
+        sprite_placer(SPR_BALLE, PIXELS(balle_x), PIXELS(balle_y), 1);
     }
     return 0;
 }
