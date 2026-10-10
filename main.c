@@ -1,16 +1,18 @@
 /*
- * Pong pour Neo Geo - etape pong-2
- * Les raquettes et la balle deviennent des sprites.
- * Serie "Apprendre a coder sur Neo Geo en C", episode 04.
+ * Pong pour Neo Geo - etape pong-3
+ * Les raquettes bougent : la boucle de jeu, le VBlank, la manette.
+ * Serie "Apprendre a coder sur Neo Geo en C", episode 05.
  *
- * La Neo Geo ne sait pas "dessiner un rectangle" : tout ce qui bouge
- * est un sprite, une colonne de tuiles de 16 x 16 pixels rangees
- * dans la ROM C. Nos tuiles sont dessinees dans assets/pong-sprites.gif.
+ * Sur Neo Geo, le temps est fixe : une image toutes les 1/59,19 s.
+ * Les vitesses s'expriment donc en pixels PAR IMAGE, et comme le 68000
+ * ne calcule pas avec des virgules, en "virgule fixe" : la valeur x 256.
  */
 
 #include <ngdevkit/neogeo.h>
 #include <ngdevkit/bios-calls.h>
 #include <ngdevkit/ng-fix.h>
+#include <ngdevkit/ng-video.h>   // ng_wait_vblank()
+#include <ngdevkit/bios-ram.h>   // bios_p1current, bios_p2current : les manettes
 
 // --- La memoire video des sprites (VRAM) -------------------------------
 // Chaque sprite est decrit dans 4 tables :
@@ -43,6 +45,17 @@
 #define RAQUETTE_L      5
 #define RAQUETTE_H     20
 #define BALLE_T         4
+
+// --- Virgule fixe 8.8 : la valeur x 256 -----------------------------------
+// 200 px/s dans le cours d'origine, a l'echelle de notre ecran (x 0,92)
+// et par image (/ 59,19) : 3,11 px par image, soit 3,11 x 256 = 797.
+#define VITESSE_RAQUETTE  797
+#define FIXE(px)  ((s32)(px) << 8)    // pixels -> virgule fixe
+#define PIXELS(f) ((s16)((f) >> 8))   // virgule fixe -> pixels
+
+// Position verticale des raquettes, en virgule fixe
+static s32 raquette1_y = FIXE(28);
+static s32 raquette2_y = FIXE(ECRAN_H - 28 - RAQUETTE_H);
 
 static void init_palettes(void) {
     MMAP_PALBANK1[PAL_BLANC * 16 + 1] = 0x0fff;      // texte blanc
@@ -97,11 +110,25 @@ int main(void) {
 
     // Raquette gauche : 8 pixels du bord. Raquette droite : 8 pixels du bord
     // droit, sans oublier sa largeur (320 - 8 - 5 = 307).
-    sprite_placer(SPR_RAQUETTE1, 8, 28, 2);
-    sprite_placer(SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, ECRAN_H - 28 - RAQUETTE_H, 2);
     // La balle au centre : (320 - 4) / 2 = 158 et (224 - 4) / 2 = 110
     sprite_placer(SPR_BALLE, (ECRAN_L - BALLE_T) / 2, (ECRAN_H - BALLE_T) / 2, 1);
 
-    for (;;) {}
+    // La boucle de jeu : lire, calculer, attendre l'image, afficher.
+    for (;;) {
+        // 1. Lire les manettes (le BIOS les a lues pour nous)
+        //    et 2. calculer les nouvelles positions.
+        //    Haut = y diminue (l'axe Y descend), bas = y augmente.
+        if (bios_p1current & CNT_UP)   raquette1_y -= VITESSE_RAQUETTE;
+        if (bios_p1current & CNT_DOWN) raquette1_y += VITESSE_RAQUETTE;
+        if (bios_p2current & CNT_UP)   raquette2_y -= VITESSE_RAQUETTE;
+        if (bios_p2current & CNT_DOWN) raquette2_y += VITESSE_RAQUETTE;
+
+        // 3. Attendre le VBlank : une seule fois par image, toujours.
+        ng_wait_vblank();
+
+        // 4. Afficher : on ne garde que la partie entiere (en pixels).
+        sprite_placer(SPR_RAQUETTE1, 8, PIXELS(raquette1_y), 2);
+        sprite_placer(SPR_RAQUETTE2, ECRAN_L - 8 - RAQUETTE_L, PIXELS(raquette2_y), 2);
+    }
     return 0;
 }
