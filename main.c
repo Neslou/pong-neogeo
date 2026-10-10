@@ -1,6 +1,8 @@
 /*
- * Pong pour Neo Geo - etape pong-10
- * Un vrai jeu : victoire a 10 points, ecran de fin, et on recommence.
+ * Pong pour Neo Geo - bonus pong-10-neogeo (branche bonus-10-neogeo)
+ * Le plus Neo Geo de l'episode 07 : la fete de la victoire.
+ * Le fond change de couleur (une seule case de palette) et le score
+ * du gagnant "bat" grace a la reduction materielle (SCB2).
  * Serie "Apprendre a coder sur Neo Geo en C", episode 07.
  */
 
@@ -108,6 +110,44 @@ static u8 start_vient_d_etre_appuye(void) {
     return resultat;
 }
 
+// Bonus : 4 couleurs de fete pour le fond, et 8 tailles pour le score.
+// Une taille SCB2 = (largeur << 8) | hauteur ; 0x0fff = taille normale.
+static const u16 fond_fete[4] = { 0x6223, 0x0326, 0x0624, 0x0532 };
+static const u16 battement[8] = {
+    0x0fff, 0x0eee, 0x0ddd, 0x0ccc, 0x0bbb, 0x0ccc, 0x0ddd, 0x0eee
+};
+
+// Piege de la reduction : un sprite reduit va chercher des lignes dans
+// toute sa colonne de 32 tuiles (SCB1). On remplit la suite de chaque
+// chiffre avec une tuile vide (259), sinon des restes peuvent apparaitre.
+#define TUILE_VIDE 259
+
+static void sprite_vider_suite(u16 sprite, u8 depuis) {
+    *REG_VRAMADDR = ADDR_SCB1 + sprite * 64 + depuis * 2;
+    *REG_VRAMMOD = 1;
+    for (u8 i = depuis; i < 32; i++) {
+        *REG_VRAMRW = TUILE_VIDE;
+        *REG_VRAMRW = 0;
+    }
+}
+
+static void score_taille(u16 sprite, u16 taille) {
+    *REG_VRAMADDR = ADDR_SCB2 + sprite;
+    *REG_VRAMRW = taille;
+}
+
+static void fete(u16 images) {
+    MMAP_PALBANK1[4095] = fond_fete[(images >> 4) & 3];
+    u16 taille = battement[(images >> 2) & 7];
+    if (joueur_gagnant == 1) {
+        score_taille(SPR_SCORE1_D, taille);
+        score_taille(SPR_SCORE1_U, taille);
+    } else {
+        score_taille(SPR_SCORE2_D, taille);
+        score_taille(SPR_SCORE2_U, taille);
+    }
+}
+
 int main(void) {
     bios_fix_clear();
     init_palettes();
@@ -119,6 +159,9 @@ int main(void) {
     afficher_etat();
     debug_init();
     score_init();
+    for (u16 spr = SPR_SCORE1_D; spr <= SPR_SCORE2_U; spr++) {
+        sprite_vider_suite(spr, 1);   // bonus : prepare la reduction
+    }
 
     u8 graine_choisie = 0;
     u16 images = 0;   // nombre de tours de boucle (= d'images) depuis le debut
@@ -182,9 +225,17 @@ int main(void) {
         raquette_afficher(&joueur2);
         balle_afficher(&balle);
         if (score_change) {
+            // score_afficher remet aussi les chiffres a leur taille normale
             score_afficher(1, score1);
             score_afficher(2, score2);
             score_change = 0;
+        }
+
+        // Bonus : la fete pendant l'ecran de fin, le fond normal sinon.
+        if (etat == ETAT_FIN) {
+            fete(images);
+        } else {
+            MMAP_PALBANK1[4095] = 0x6223;
         }
     }
     return 0;
