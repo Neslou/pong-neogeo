@@ -1,7 +1,7 @@
 /*
- * Pong pour Neo Geo - etape pong-6
- * Un compteur de debogage : images affichees et images perdues.
- * Maintenir A simule un calcul trop long, pour voir le compteur grimper.
+ * Pong pour Neo Geo - etape pong-7
+ * Les collisions : la balle rebondit sur les raquettes et sur les murs,
+ * et accelere a chaque renvoi.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 06.
  */
 
@@ -93,6 +93,13 @@ int main(void) {
 
         if (etat == ETAT_JEU) {
             balle_mettre_a_jour(&balle);
+            if (balle_touche(&balle, &joueur1)) {
+                balle_renvoyer(&balle, &joueur1);
+            }
+            if (balle_touche(&balle, &joueur2)) {
+                balle_renvoyer(&balle, &joueur2);
+            }
+            balle_rebondir_murs(&balle);
         }
 
         // Bouton A maintenu : on "travaille" trop longtemps, exprès,

@@ -19,6 +19,8 @@
 
 // --- Vitesses (8.8, par image) -------------------------------------------
 #define VITESSE_RAQUETTE  797   // 3,11 px par image
+#define VITESSE_MAX_BALLE 1536  // 6 px par image : au-dela, la balle pourrait
+                                // traverser une raquette de 5 px en une image
 
 // --- Tuiles, sprites et palettes ------------------------------------------
 #define TUILE_RAQUETTE  256
