@@ -81,8 +81,9 @@ $(SROM1): $(BUILDDIR)/assets/base-srom-text-shadow.fix
 # By default, this makefile creates CROMs with tiles for displaying a ngdevkit
 # logo during the attract mode.
 # Note: build rules (%.gif -> %.c<1,2>) are defined in Makefile.build
-$(CROM1): $(BUILDDIR)/assets/base-crom-logo.c1
-$(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2
+# Les 256 tuiles du logo ngdevkit, puis nos tuiles (a partir de la 256)
+$(CROM1): $(BUILDDIR)/assets/base-crom-logo.c1 $(BUILDDIR)/assets/pong-sprites.c1
+$(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2 $(BUILDDIR)/assets/pong-sprites.c2
 
 
 
