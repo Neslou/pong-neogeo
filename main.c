@@ -1,6 +1,6 @@
 /*
- * Pong pour Neo Geo - etape pong-8
- * Le score : un point quand la balle sort completement de l'ecran.
+ * Pong pour Neo Geo - etape pong-9
+ * Le service : celui qui vient d'encaisser le point sert.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 07.
  */
 
@@ -19,12 +19,16 @@
 #include "vblank.h"
 #include "score.h"
 
-#define ETAT_DEBUT  0
-#define ETAT_JEU    1
+// Les etats du jeu (patron "State") :
+//   DEBUT --START--> SERVICE --START--> JEU --point--> SERVICE ...
+#define ETAT_DEBUT    0
+#define ETAT_SERVICE  1
+#define ETAT_JEU      2
 
 static Raquette joueur1, joueur2;
 static Balle balle;
 static u8 etat = ETAT_DEBUT;
+static u8 joueur_au_service = 1;
 static u8 score1 = 0, score2 = 0;
 static u8 score_change = 0;   // "drapeau sale" : 1 = le score est a redessiner
 
@@ -35,19 +39,44 @@ static void init_palettes(void) {
     MMAP_PALBANK1[4095] = 0x6223;
 }
 
+// Efface une ligne de la couche fix, puis y centre un texte.
+static void message(u8 ligne, const char *texte) {
+    ng_text(0, ligne, PAL_BLANC, "                                        ");
+    ng_center_text(ligne, PAL_BLANC, texte);
+}
+
 static void afficher_etat(void) {
     if (etat == ETAT_DEBUT) {
-        ng_center_text(3, PAL_BLANC, "ETAT : DEBUT  ");
+        message(3, "BIENVENUE DANS PONG !");
+        message(5, "START POUR COMMENCER");
+    } else if (etat == ETAT_SERVICE) {
+        message(3, joueur_au_service == 1 ? "SERVICE : JOUEUR 1" : "SERVICE : JOUEUR 2");
+        message(5, "START POUR SERVIR");
     } else {
-        ng_center_text(3, PAL_BLANC, "ETAT : JEU    ");
+        message(3, "");
+        message(5, "");
     }
 }
 
-// La vitesse d'une raquette selon sa manette : haut, bas, ou rien.
 static s16 vitesse_selon(u8 manette) {
     if (manette & CNT_UP)   return -VITESSE_RAQUETTE;
     if (manette & CNT_DOWN) return VITESSE_RAQUETTE;
     return 0;
+}
+
+// Un point est marque : le perdant du point servira.
+static void point_pour(u8 joueur) {
+    if (joueur == 1) {
+        score1++;
+        joueur_au_service = 2;
+    } else {
+        score2++;
+        joueur_au_service = 1;
+    }
+    score_change = 1;
+    balle_au_centre(&balle);
+    etat = ETAT_SERVICE;
+    afficher_etat();
 }
 
 // START "vient d'etre appuye" : vrai UNE seule image, quand le bouton
@@ -84,9 +113,14 @@ int main(void) {
                 hasard_graine(images);   // le hasard = l'instant ou le joueur appuie
                 graine_choisie = 1;
             }
-            etat = (etat == ETAT_DEBUT) ? ETAT_JEU : ETAT_DEBUT;
-            balle_au_centre(&balle);
-            afficher_etat();
+            if (etat == ETAT_DEBUT) {
+                etat = ETAT_SERVICE;
+                afficher_etat();
+            } else if (etat == ETAT_SERVICE) {
+                balle_servir(&balle, joueur_au_service);
+                etat = ETAT_JEU;
+                afficher_etat();
+            }
         }
 
         joueur1.dy = vitesse_selon(bios_p1current);
@@ -104,25 +138,14 @@ int main(void) {
             }
             balle_rebondir_murs(&balle);
 
-            // Un point quand la balle est sortie EN ENTIER de l'ecran,
-            // a gauche comme a droite (le cours d'origine etait asymetrique).
+            // Un point quand la balle est sortie EN ENTIER de l'ecran.
             if (PIXELS(balle.x) + BALLE_T <= 0) {
-                score2++;
-                score_change = 1;
-                etat = ETAT_DEBUT;
-                balle_au_centre(&balle);
-                afficher_etat();
+                point_pour(2);
             } else if (PIXELS(balle.x) >= ECRAN_L) {
-                score1++;
-                score_change = 1;
-                etat = ETAT_DEBUT;
-                balle_au_centre(&balle);
-                afficher_etat();
+                point_pour(1);
             }
         }
 
-        // Bouton A maintenu : on "travaille" trop longtemps, exprès,
-        // pour depasser la duree d'une image (environ 16,9 ms).
         if (bios_p1current & CNT_A) {
             for (volatile u16 attente = 0; attente < 4000; attente++) {}
         }

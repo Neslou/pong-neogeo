@@ -11,14 +11,24 @@ void balle_init(Balle *b, u16 sprite) {
     balle_au_centre(b);
 }
 
-// Au centre, avec une vitesse au hasard.
-// Cours d'origine : 100 px/s a gauche ou a droite, -50 a 50 px/s en hauteur.
-// Par image et a notre echelle : 1,25 px (320) et -0,78 a 0,78 px (-199 a 199).
+// Au centre, immobile : c'est le service qui la lance.
 void balle_au_centre(Balle *b) {
     b->x = FIXE((ECRAN_L - BALLE_T) / 2);
     b->y = FIXE((ECRAN_H - BALLE_T) / 2);
-    b->dx = (hasard() & 1) ? 320 : -320;
+    b->dx = 0;
+    b->dy = 0;
+}
+
+// Le service : vers l'adversaire du joueur qui sert.
+// Cours d'origine : 140 a 200 px/s en largeur, -50 a 50 px/s en hauteur.
+// Par image et a notre echelle : 448 a 640, et -199 a 199.
+void balle_servir(Balle *b, u8 joueur) {
     b->dy = hasard_entre(-199, 199);
+    if (joueur == 1) {
+        b->dx = hasard_entre(448, 640);     // le joueur 1 sert vers la droite
+    } else {
+        b->dx = -hasard_entre(448, 640);    // le joueur 2 sert vers la gauche
+    }
 }
 
 void balle_mettre_a_jour(Balle *b) {

@@ -15,6 +15,7 @@ typedef struct {
 
 void balle_init(Balle *b, u16 sprite);
 void balle_au_centre(Balle *b);
+void balle_servir(Balle *b, u8 joueur);
 void balle_mettre_a_jour(Balle *b);
 void balle_afficher(const Balle *b);
 u8 balle_touche(const Balle *b, const Raquette *r);
