@@ -36,4 +36,10 @@
 #define PAL_BLANC       0
 #define PAL_SPRITES    16
 
+// --- Le son : une commande envoyee au processeur Z80 ----------------------
+#define REG_SON       ((volatile u8*)0x320000)
+#define SON_RAQUETTE  4
+#define SON_MUR       5
+#define SON_POINT     6
+
 #endif

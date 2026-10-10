@@ -1,7 +1,7 @@
 /*
- * Pong pour Neo Geo - etape pong-10
- * Un vrai jeu : victoire a 10 points, ecran de fin, et on recommence.
- * Serie "Apprendre a coder sur Neo Geo en C", episode 07.
+ * Pong pour Neo Geo - etape pong-11
+ * Le son : trois bruitages ADPCM-A joues par le processeur Z80.
+ * Serie "Apprendre a coder sur Neo Geo en C", episode 08.
  */
 
 #include <ngdevkit/neogeo.h>
@@ -85,6 +85,7 @@ static void point_pour(u8 joueur) {
         joueur_au_service = 1;
     }
     score_change = 1;
+    *REG_SON = SON_POINT;
     balle_au_centre(&balle);
     if (score == SCORE_GAGNANT) {
         joueur_gagnant = joueur;
@@ -109,6 +110,7 @@ static u8 start_vient_d_etre_appuye(void) {
 }
 
 int main(void) {
+    *REG_SON = 3;   // remet le pilote son a zero
     bios_fix_clear();
     init_palettes();
     cacher_tous_les_sprites();
@@ -156,11 +158,15 @@ int main(void) {
             balle_mettre_a_jour(&balle);
             if (balle_touche(&balle, &joueur1)) {
                 balle_renvoyer(&balle, &joueur1);
+                *REG_SON = SON_RAQUETTE;
             }
             if (balle_touche(&balle, &joueur2)) {
                 balle_renvoyer(&balle, &joueur2);
+                *REG_SON = SON_RAQUETTE;
             }
-            balle_rebondir_murs(&balle);
+            if (balle_rebondir_murs(&balle)) {
+                *REG_SON = SON_MUR;
+            }
 
             // Un point quand la balle est sortie EN ENTIER de l'ecran.
             if (PIXELS(balle.x) + BALLE_T <= 0) {

@@ -93,8 +93,10 @@ $(CROM2): $(BUILDDIR)/assets/base-crom-logo.c2 $(BUILDDIR)/assets/pong-sprites.c
 #
 # By default, this makefile uses the empty sound driver provided by ngdevkit
 # Note: build rules (%.s -> %.o -> %.ihx) are defined in Makefile.build
-SOUND_DRIVER=$(BUILDDIR)/assets/base-sound-driver.ihx
+# Notre pilote : nullsound + nos commandes de bruitage (sons.s)
+SOUND_DRIVER=$(BUILDDIR)/pong-sons.ihx
 $(MROM1): $(SOUND_DRIVER)
+$(SOUND_DRIVER): $(BUILDDIR)/assets/ngdevkit-eye-catcher.lib $(BUILDDIR)/sons.rel
 
 
 
@@ -106,6 +108,7 @@ $(MROM1): $(SOUND_DRIVER)
 # the dependencies automatically.
 # By default, no sample is used, so the VROM is empty
 # Note: build rules (%.wav-> %.adpcm<a,b>) are defined in Makefile.build
+$(VROM1): assets/sons.yaml
 
 
 
@@ -126,7 +129,12 @@ $(MROM1): $(SOUND_DRIVER)
 #     the right ROM bank based on your input assets
 # Those actions can be achieved by creating custom make targets
 # that get invoked automatically when added to the variable below.
-CUSTOM_GENERATE_TARGETS=
+CUSTOM_GENERATE_TARGETS=generate-sfx
+
+generate-sfx: $(BUILDDIR)/assets/samples.inc
+
+$(BUILDDIR)/assets/samples.inc: assets/sons.yaml
+	$(VROMTOOL) --asm -s $(VROMSIZE) $< -o $(VROM1) -m $@
 
 
 

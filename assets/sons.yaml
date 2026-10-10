@@ -1,0 +1,11 @@
+# Les bruitages de Pong, ranges dans la ROM V par vromtool.py.
+# Format attendu : WAV mono, non compresse, 18 500 Hz.
+- adpcm_a:
+    name: raquette
+    uri: file://assets/sons/raquette.wav
+- adpcm_a:
+    name: mur
+    uri: file://assets/sons/mur.wav
+- adpcm_a:
+    name: point
+    uri: file://assets/sons/point.wav
