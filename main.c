@@ -1,6 +1,6 @@
 /*
- * Pong pour Neo Geo - etape pong-9
- * Le service : celui qui vient d'encaisser le point sert.
+ * Pong pour Neo Geo - etape pong-10
+ * Un vrai jeu : victoire a 10 points, ecran de fin, et on recommence.
  * Serie "Apprendre a coder sur Neo Geo en C", episode 07.
  */
 
@@ -21,14 +21,20 @@
 
 // Les etats du jeu (patron "State") :
 //   DEBUT --START--> SERVICE --START--> JEU --point--> SERVICE ...
+//                                        JEU --10 points--> FIN --START--> SERVICE
 #define ETAT_DEBUT    0
 #define ETAT_SERVICE  1
 #define ETAT_JEU      2
+#define ETAT_FIN      3
+
+// Le nombre de points pour gagner. Astuce : mettre 2 pendant les essais.
+#define SCORE_GAGNANT 10
 
 static Raquette joueur1, joueur2;
 static Balle balle;
 static u8 etat = ETAT_DEBUT;
 static u8 joueur_au_service = 1;
+static u8 joueur_gagnant = 0;
 static u8 score1 = 0, score2 = 0;
 static u8 score_change = 0;   // "drapeau sale" : 1 = le score est a redessiner
 
@@ -52,6 +58,9 @@ static void afficher_etat(void) {
     } else if (etat == ETAT_SERVICE) {
         message(3, joueur_au_service == 1 ? "SERVICE : JOUEUR 1" : "SERVICE : JOUEUR 2");
         message(5, "START POUR SERVIR");
+    } else if (etat == ETAT_FIN) {
+        message(3, joueur_gagnant == 1 ? "JOUEUR 1 GAGNE !" : "JOUEUR 2 GAGNE !");
+        message(5, "START POUR REJOUER");
     } else {
         message(3, "");
         message(5, "");
@@ -64,18 +73,25 @@ static s16 vitesse_selon(u8 manette) {
     return 0;
 }
 
-// Un point est marque : le perdant du point servira.
+// Un point est marque : le perdant du point servira,
+// sauf si le gagnant atteint SCORE_GAGNANT.
 static void point_pour(u8 joueur) {
+    u8 score;
     if (joueur == 1) {
-        score1++;
+        score = ++score1;
         joueur_au_service = 2;
     } else {
-        score2++;
+        score = ++score2;
         joueur_au_service = 1;
     }
     score_change = 1;
     balle_au_centre(&balle);
-    etat = ETAT_SERVICE;
+    if (score == SCORE_GAGNANT) {
+        joueur_gagnant = joueur;
+        etat = ETAT_FIN;
+    } else {
+        etat = ETAT_SERVICE;
+    }
     afficher_etat();
 }
 
@@ -119,6 +135,14 @@ int main(void) {
             } else if (etat == ETAT_SERVICE) {
                 balle_servir(&balle, joueur_au_service);
                 etat = ETAT_JEU;
+                afficher_etat();
+            } else if (etat == ETAT_FIN) {
+                // On repart a zero ; le perdant de la partie sert.
+                score1 = 0;
+                score2 = 0;
+                score_change = 1;
+                joueur_au_service = (joueur_gagnant == 1) ? 2 : 1;
+                etat = ETAT_SERVICE;
                 afficher_etat();
             }
         }
